@@ -3,29 +3,26 @@ from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 import random
 import string
-import requests
+import os  # ফাইল ডিলিট করার জন্য os মডিউল আমদানি করা
 
-# বটের টোকেন এবং ইউটিউব API কী
+# বটের টোকেন এবং গ্রুপ আইডি
 bot = telebot.TeleBot('7768232321:AAEIxiScxQfadADzTGzicsyJ56oDxhfkl1U')
-YOUTUBE_API_KEY = 'AIzaSyD5FPM6DiFItiLUSgmqq7u3iDMV-2hEPpI'
-CHANNEL_ID = 'UCL-ROLDzcdcId5b8ilSssNA'
+GROUP_ID = -1002261392190  # আপনার গ্রুপের আইডি এখানে দিন
 
 # ইনপুট সংরক্ষণের জন্য একটি dictionary ব্যবহার করা হবে
 user_data = {}
 
 # ৮ অক্ষরের র্যান্ডম ট্রানজেকশন আইডি তৈরি ফাংশন
 def generate_transaction_id():
-    return ''.join(random.choices(string.ascii_uppercase, k=8))
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
-# ইউজারের সাবস্ক্রিপশন চেক করার ফাংশন
-def is_subscribed(user_id):
-    url = f"https://www.googleapis.com/youtube/v3/subscriptions?part=id&forChannelId={CHANNEL_ID}&mine=true&key={YOUTUBE_API_KEY}"
-    headers = {"Authorization": f"Bearer {user_id}"}
-    response = requests.get(url, headers=headers)
-
-    if response.status_code == 200:
-        return True
-    else:
+# ইউজারের গ্রুপে যুক্ত থাকা চেক করার ফাংশন
+def is_member(user_id):
+    try:
+        member = bot.get_chat_member(GROUP_ID, user_id)
+        return member.status in ['member', 'administrator']
+    except Exception as e:
+        print(f"Error checking membership: {e}")
         return False
 
 # ফেক স্ক্রিনশট তৈরির ফাংশন
@@ -35,10 +32,9 @@ def create_fake_screenshot(phone_number, amount, template_type='bkash', name=Non
         phone_number_position = (279, 638)
         amount_position = (127, 1094)
         transaction_id_position = (600, 905)
-        full_time_date_position = (90.7, 898)
+        full_time_date_position = (90, 898)
         name_position = (279, 590)  # বিকাশের ক্ষেত্রে নামের জন্য পজিশন
         current_time_position = (29, 18)
-
     else:
         img = Image.open('nagad_template.png')  # Nagad টেমপ্লেট লোড
         phone_number_position = (400, 580)
@@ -80,25 +76,30 @@ def create_fake_screenshot(phone_number, amount, template_type='bkash', name=Non
     if template_type == 'bkash' and name:
         draw.text(name_position, f'{name}', font=font, fill='#727272')
 
-    # ফেক স্ক্রিনশট সেভ করা
-    img.save('fake_screenshot.png')
+    # রেন্ডম ফাইল নাম তৈরি করা
+    file_name = f"fake_screenshot_{generate_transaction_id()}.png"
+    
+    # স্ক্রিনশট সেভ করা
+    img.save(file_name)
+    return file_name
 
-# নতুন ব্যবহারকারীকে ওয়েলকাম মেসেজ এবং সাবস্ক্রিপশন চেক মেসেজ
+# নতুন ব্যবহারকারীকে ওয়েলকাম মেসেজ এবং গ্রুপে যুক্ত হওয়ার মেসেজ
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "স্বাগতম! আমাদের ইউটিউব চ্যানেলে সাবস্ক্রাইব করুন এবং তারপর স্ক্রিনশট তৈরি করতে পারেন।")
-    bot.send_message(message.chat.id, "আপনার সাবস্ক্রিপশন স্ট্যাটাস চেক করার জন্য /check_subscription ব্যবহার করুন।")
+    bot.send_message(message.chat.id, "স্বাগতম! আমাদের Telegram গ্রুপে যুক্ত হন এবং তারপর স্ক্রিনশট তৈরি করতে পারেন।")
+    bot.send_message(message.chat.id, "গ্রুপে যুক্ত হতে এখানে ক্লিক করুন: https://t.me/+VKifhnq-QbFhYTI1")
+    bot.send_message(message.chat.id, "গ্রুপে যুক্ত হওয়ার পর /check_membership ব্যবহার করুন।")
 
-# সাবস্ক্রিপশন চেক করার কমান্ড
-@bot.message_handler(commands=['check_subscription'])
-def check_subscription(message):
+# সদস্যপদ চেক করার কমান্ড
+@bot.message_handler(commands=['check_membership'])
+def check_membership(message):
     user_id = message.from_user.id
 
-    if is_subscribed(user_id):
-        bot.send_message(message.chat.id, "আপনার সাবস্ক্রিপশন নিশ্চিত করা হয়েছে! এখন আপনি বটটি ব্যবহার করতে পারেন।")
+    if is_member(user_id):
+        bot.send_message(message.chat.id, "আপনার সদস্যপদ নিশ্চিত করা হয়েছে! এখন আপনি বটটি ব্যবহার করতে পারেন।")
         show_menu(message.chat.id)  # ব্যবহারকারীর জন্য মেনু দেখানো
     else:
-        bot.send_message(message.chat.id, "দয়া করে আমাদের ইউটিউব চ্যানেলে সাবস্ক্রাইব করুন এবং আবার চেষ্টা করুন।")
+        bot.send_message(message.chat.id, "দয়া করে আমাদের Telegram গ্রুপে যুক্ত হন এবং আবার চেষ্টা করুন।")
 
 # মেনু প্রদর্শনের জন্য একটি ফাংশন
 def show_menu(chat_id):
@@ -151,10 +152,15 @@ def get_amount(message):
         template_type = user_data[message.chat.id]['template_type']
         name = user_data[message.chat.id].get('name')
 
-        create_fake_screenshot(phone_number, amount, template_type, name)
+        # ফেক স্ক্রিনশট তৈরি এবং ফাইল নাম পাওয়া
+        file_name = create_fake_screenshot(phone_number, amount, template_type, name)
 
-        with open('fake_screenshot.png', 'rb') as photo:
+        # ফাইল পাঠানো
+        with open(file_name, 'rb') as photo:
             bot.send_photo(message.chat.id, photo)
+
+        # কিছুক্ষণ পর ফাইল ডিলিট করা
+        os.remove(file_name)
 
         bot.send_message(message.chat.id, "আপনি যদি আবার স্ক্রিনশট তৈরি করতে চান, মেনু থেকে একটি অপশন বেছে নিন:")
         show_menu(message.chat.id)
